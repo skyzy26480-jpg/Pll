@@ -1,0 +1,497 @@
+-- ==========================================
+--  X Boss UI - Full Pro Edition + มองของ
+-- ==========================================
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local LocalPlayer = Players.LocalPlayer
+
+-- Configuration / Settings
+local Settings = {
+    AimbotEnabled = false,
+    FOVEnabled = false,
+    ESPEnabled = false,
+    NameESPEnabled = false,
+    HealthESPEnabled = true,
+    ItemESPEnabled = false, -- สถานะเปิด/ปิด มองของ
+    MaxESPDistance = 400,
+    FOVRadius = 180,
+    TargetPart = "⚡ หัว + ตัว (สายฟ้าฟาด)",
+    FOVColorName = "สีขาว (White)",
+    
+    WhitelistedNames = {}
+}
+
+local isLockActive = false
+local espCache = {}
+
+local fovColorOptions = {
+    ["สีดำ (Black)"] = Color3.fromRGB(0, 0, 0),
+    ["สีขาว (White)"] = Color3.fromRGB(255, 255, 255),
+    ["สีแดง (Red)"] = Color3.fromRGB(255, 0, 0),
+    ["สีเขียว (Green)"] = Color3.fromRGB(0, 255, 0),
+}
+
+-- Create UI Canvas
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "XBossUI"
+ScreenGui.Parent = game:GetService("CoreGui") or LocalPlayer:WaitForChild("PlayerGui")
+ScreenGui.ResetOnSpawn = false
+
+-- Main Window
+local MainFrame = Instance.new("Frame")
+MainFrame.Name = "MainFrame"
+MainFrame.Size = UDim2.new(0, 520, 0, 360)
+MainFrame.Position = UDim2.new(0.5, -260, 0.5, -180)
+MainFrame.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+MainFrame.BorderColor3 = Color3.fromRGB(45, 45, 45)
+MainFrame.BorderSizePixel = 2
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+-- Top Bar
+local TopBar = Instance.new("Frame")
+TopBar.Size = UDim2.new(1, 0, 0, 35)
+TopBar.BackgroundColor3 = Color3.fromRGB(18, 18, 18)
+TopBar.BorderSizePixel = 0
+TopBar.Parent = MainFrame
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, -50, 1, 0)
+Title.Position = UDim2.new(0, 12, 0, 0)
+Title.BackgroundTransparency = 1
+Title.Text = "X BOSS UI | Box Spin (Item ESP)"
+Title.TextColor3 = Color3.fromRGB(220, 220, 220)
+Title.TextSize = 14
+Title.Font = Enum.Font.SourceSansBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = TopBar
+
+-- Close Button
+local CloseBtn = Instance.new("TextButton")
+CloseBtn.Size = UDim2.new(0, 35, 0, 35)
+CloseBtn.Position = UDim2.new(1, -35, 0, 0)
+CloseBtn.BackgroundTransparency = 1
+CloseBtn.Text = "X"
+CloseBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
+CloseBtn.Font = Enum.Font.SourceSansBold
+CloseBtn.TextSize = 16
+CloseBtn.Parent = TopBar
+
+CloseBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = false
+end)
+
+-- Open Button
+local OpenBtn = Instance.new("TextButton")
+OpenBtn.Size = UDim2.new(0, 85, 0, 35)
+OpenBtn.Position = UDim2.new(0, 15, 0.15, 0)
+OpenBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+OpenBtn.BorderColor3 = Color3.fromRGB(60, 60, 60)
+OpenBtn.BorderSizePixel = 2
+OpenBtn.Text = "X BOSS"
+OpenBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+OpenBtn.Font = Enum.Font.SourceSansBold
+OpenBtn.TextSize = 15
+OpenBtn.Active = true
+OpenBtn.Draggable = true
+OpenBtn.Parent = ScreenGui
+
+OpenBtn.MouseButton1Click:Connect(function()
+    MainFrame.Visible = not MainFrame.Visible
+end)
+
+-- Mobile Toggle Lock Button
+local MobileLockBtn = Instance.new("TextButton")
+MobileLockBtn.Size = UDim2.new(0, 110, 0, 45)
+MobileLockBtn.Position = UDim2.new(0.75, -55, 0.6, 0)
+MobileLockBtn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+MobileLockBtn.BorderColor3 = Color3.fromRGB(60, 60, 60)
+MobileLockBtn.BorderSizePixel = 2
+MobileLockBtn.Text = "ล็อคเป้า: [ ปิด ]"
+MobileLockBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+MobileLockBtn.Font = Enum.Font.SourceSansBold
+MobileLockBtn.TextSize = 14
+MobileLockBtn.Active = true
+MobileLockBtn.Draggable = true
+MobileLockBtn.Parent = ScreenGui
+
+MobileLockBtn.MouseButton1Click:Connect(function()
+    isLockActive = not isLockActive
+    if isLockActive then
+        MobileLockBtn.Text = "ล็อคเป้า: [ เปิด ]"
+        MobileLockBtn.TextColor3 = Color3.fromRGB(100, 255, 100)
+    else
+        MobileLockBtn.Text = "ล็อคเป้า: [ ปิด ]"
+        MobileLockBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+    end
+end)
+
+-- Sidebar & Tabs
+local Sidebar = Instance.new("Frame")
+Sidebar.Size = UDim2.new(0, 130, 1, -35)
+Sidebar.Position = UDim2.new(0, 0, 0, 35)
+Sidebar.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+Sidebar.BorderSizePixel = 0
+Sidebar.Parent = MainFrame
+
+local ContentArea = Instance.new("Frame")
+ContentArea.Size = UDim2.new(1, -130, 1, -35)
+ContentArea.Position = UDim2.new(0, 130, 0, 35)
+ContentArea.BackgroundColor3 = Color3.fromRGB(24, 24, 24)
+ContentArea.BorderSizePixel = 0
+ContentArea.Parent = MainFrame
+
+local tabs = {}
+local function CreateTabPanel()
+    local panel = Instance.new("ScrollingFrame")
+    panel.Size = UDim2.new(1, -15, 1, -15)
+    panel.Position = UDim2.new(0, 10, 0, 10)
+    panel.BackgroundTransparency = 1
+    panel.BorderSizePixel = 0
+    panel.CanvasSize = UDim2.new(0, 0, 0, 0)
+    panel.AutomaticCanvasSize = Enum.AutomaticSize.Y
+    panel.Visible = false
+    panel.Parent = ContentArea
+    return panel
+end
+
+local tabCombat = CreateTabPanel()
+local tabESP = CreateTabPanel()
+local tabVisuals = CreateTabPanel()
+
+tabs["Combat"] = tabCombat
+tabs["ESP"] = tabESP
+tabs["Visuals"] = tabVisuals
+
+local function SwitchTab(tabName)
+    for name, panel in pairs(tabs) do
+        panel.Visible = (name == tabName)
+    end
+end
+SwitchTab("Combat")
+
+local function CreateSidebarButton(name, text, yPos)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 0, 40)
+    btn.Position = UDim2.new(0, 0, 0, yPos)
+    btn.BackgroundTransparency = 1
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(170, 170, 170)
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 15
+    btn.Parent = Sidebar
+
+    btn.MouseButton1Click:Connect(function()
+        SwitchTab(name)
+    end)
+end
+
+CreateSidebarButton("Combat", "⚔️ Combat", 10)
+CreateSidebarButton("ESP", "👁️ ESP & Visual", 55)
+CreateSidebarButton("Visuals", "⚙️ Aimbot/FOV", 100)
+
+local function AddToggle(parent, text, defaultState, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 35)
+    btn.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+    btn.BorderColor3 = Color3.fromRGB(50, 50, 50)
+    btn.BorderSizePixel = 1
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+    
+    local state = defaultState
+    local function updateText()
+        btn.Text = "   " .. text .. ": " .. (state and "[ เปิด ]" or "[ ปิด ]")
+    end
+    updateText()
+
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        updateText()
+        callback(state)
+    end)
+    
+    local UIListLayout = parent:FindFirstChildOfClass("UIListLayout")
+    if not UIListLayout then
+        local layout = Instance.new("UIListLayout")
+        layout.SortOrder = Enum.SortOrder.LayoutOrder
+        layout.Padding = UDim.new(0, 8)
+        layout.Parent = parent
+    end
+
+    btn.Parent = parent
+    return btn
+end
+
+local function AddSelector(parent, text, options, callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -10, 0, 35)
+    btn.BackgroundColor3 = Color3.fromRGB(32, 32, 32)
+    btn.BorderColor3 = Color3.fromRGB(50, 50, 50)
+    btn.BorderSizePixel = 1
+    btn.Font = Enum.Font.SourceSansBold
+    btn.TextSize = 14
+    btn.TextColor3 = Color3.fromRGB(220, 220, 220)
+
+    local currentIndex = 1
+    btn.Text = "   " .. text .. ": " .. options[currentIndex]
+
+    btn.MouseButton1Click:Connect(function()
+        currentIndex = currentIndex + 1
+        if currentIndex > #options then currentIndex = 1 end
+        btn.Text = "   " .. text .. ": " .. options[currentIndex]
+        callback(options[currentIndex])
+    end)
+
+    btn.Parent = parent
+    return btn
+end
+
+-- Options Creation
+AddToggle(tabCombat, "เปิดใช้งาน Aimbot สายฟ้า", Settings.AimbotEnabled, function(val) Settings.AimbotEnabled = val end)
+AddSelector(tabCombat, "จุดล็อคเป้าหมาย", {"⚡ หัว + ตัว (สายฟ้าฟาด)", "หัว (Head)", "ตัว (Body)", "คอ (Neck)"}, function(val)
+    Settings.TargetPart = val
+end)
+
+AddToggle(tabESP, "กรอบสี่เหลี่ยม + เส้น Tracer", Settings.ESPEnabled, function(val) Settings.ESPEnabled = val end)
+AddToggle(tabESP, "หลอดเลือด + ตัวเลข HP", Settings.HealthESPEnabled, function(val) Settings.HealthESPEnabled = val end)
+AddToggle(tabESP, "แสดงชื่อบนหัว (Name ESP)", Settings.NameESPEnabled, function(val) Settings.NameESPEnabled = val end)
+
+-- เพิ่มปุ่มมองของ (รัน External Script)
+AddToggle(tabESP, "📦 มองของ (Item ESP)", Settings.ItemESPEnabled, function(val)
+    Settings.ItemESPEnabled = val
+    if val then
+        pcall(function()
+            loadstring(game:HttpGet("https://pastefy.app/cIyYKNBD/raw", true))()
+        end)
+    end
+end)
+
+AddToggle(tabVisuals, "แสดงวง FOV กลางจอ", Settings.FOVEnabled, function(val) Settings.FOVEnabled = val end)
+AddSelector(tabVisuals, "ขนาดวง FOV", {"120", "180", "240", "300", "360"}, function(val) Settings.FOVRadius = tonumber(val) end)
+AddSelector(tabVisuals, "สีวง FOV", {"สีขาว (White)", "สีดำ (Black)", "สีแดง (Red)", "สีเขียว (Green)"}, function(val) Settings.FOVColorName = val end)
+
+-- FOV Circle
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Thickness = 2
+FOVCircle.Filled = false
+FOVCircle.Transparency = 0.8
+FOVCircle.Visible = false
+
+local function GetTargetPosition(character)
+    local head = character:FindFirstChild("Head")
+    local rootPart = character:FindFirstChild("HumanoidRootPart")
+    if not head or not rootPart then return nil end
+
+    if Settings.TargetPart == "⚡ หัว + ตัว (สายฟ้าฟาด)" then
+        return head.Position + Vector3.new(0, 0.1, 0)
+    elseif Settings.TargetPart == "Neck" then
+        return (head.Position + rootPart.Position) / 2
+    elseif Settings.TargetPart == "Body" then
+        return rootPart.Position
+    else
+        return head.Position
+    end
+end
+
+local function GetClosestTarget()
+    local closestPosition = nil
+    local shortestDistance = Settings.FOVRadius
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Humanoid") and player.Character.Humanoid.Health > 0 then
+            local targetPos = GetTargetPosition(player.Character)
+            if targetPos then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(targetPos)
+                if onScreen then
+                    local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    if distance <= shortestDistance then
+                        shortestDistance = distance
+                        closestPosition = targetPos
+                    end
+                end
+            end
+        end
+    end
+    return closestPosition
+end
+
+-- ESP System
+local function UpdateESP()
+    local myChar = LocalPlayer.Character
+    local myRoot = myChar and myChar:FindFirstChild("HumanoidRootPart")
+
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            if not espCache[player] then
+                espCache[player] = {
+                    Box = Drawing.new("Square"),
+                    Tracer = Drawing.new("Line"),
+                    NameTag = Drawing.new("Text"),
+                    HealthBarOutline = Drawing.new("Square"),
+                    HealthBar = Drawing.new("Square"),
+                    HealthText = Drawing.new("Text")
+                }
+                
+                espCache[player].Box.Visible = false
+                espCache[player].Box.Color = Color3.fromRGB(255, 255, 255)
+                espCache[player].Box.Thickness = 1.5
+                espCache[player].Box.Filled = false
+                
+                espCache[player].Tracer.Visible = false
+                espCache[player].Tracer.Color = Color3.fromRGB(255, 255, 255)
+                espCache[player].Tracer.Thickness = 1
+                
+                espCache[player].NameTag.Visible = false
+                espCache[player].NameTag.Color = Color3.fromRGB(255, 255, 255)
+                espCache[player].NameTag.Size = 13
+                espCache[player].NameTag.Center = true
+                espCache[player].NameTag.Outline = true
+
+                espCache[player].HealthBarOutline.Visible = false
+                espCache[player].HealthBarOutline.Color = Color3.fromRGB(0, 0, 0)
+                espCache[player].HealthBarOutline.Filled = true
+
+                espCache[player].HealthBar.Visible = false
+                espCache[player].HealthBar.Color = Color3.fromRGB(0, 255, 0)
+                espCache[player].HealthBar.Filled = true
+
+                espCache[player].HealthText.Visible = false
+                espCache[player].HealthText.Color = Color3.fromRGB(0, 255, 0)
+                espCache[player].HealthText.Size = 12
+                espCache[player].HealthText.Outline = true
+            end
+
+            local cache = espCache[player]
+            local char = player.Character
+            
+            if myRoot and char and char:FindFirstChild("Humanoid") and char.Humanoid.Health > 0 and char:FindFirstChild("HumanoidRootPart") and char:FindFirstChild("Head") then
+                local humanoid = char.Humanoid
+                local rootPart = char.HumanoidRootPart
+                local head = char.Head
+                
+                local distance = (rootPart.Position - myRoot.Position).Magnitude
+                
+                if distance <= Settings.MaxESPDistance then
+                    local topPosition = head.Position + Vector3.new(0, 0.5, 0)
+                    local bottomPosition = rootPart.Position - Vector3.new(0, 2.8, 0)
+                    
+                    local headPos, headOnScreen = Camera:WorldToViewportPoint(topPosition)
+                    local legPos, legOnScreen = Camera:WorldToViewportPoint(bottomPosition)
+                    local rootPos, rootOnScreen = Camera:WorldToViewportPoint(rootPart.Position)
+                    
+                    if headOnScreen and headPos.Z > 0 then
+                        local height = math.abs(headPos.Y - legPos.Y)
+                        local width = height / 1.8
+                        if height < 12 then height = 12 end
+
+                        -- Box & Top Tracer
+                        if Settings.ESPEnabled then
+                            cache.Box.Size = Vector2.new(width, height)
+                            cache.Box.Position = Vector2.new(headPos.X - width / 2, headPos.Y)
+                            cache.Box.Visible = true
+                            
+                            cache.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, 0)
+                            cache.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
+                            cache.Tracer.Visible = true
+                        else
+                            cache.Box.Visible = false
+                            cache.Tracer.Visible = false
+                        end
+
+                        -- Health Bar
+                        if Settings.ESPEnabled and Settings.HealthESPEnabled then
+                            local healthPercent = math.clamp(humanoid.Health / humanoid.MaxHealth, 0, 1)
+                            local barWidth = 3
+                            local barX = (headPos.X - width / 2) - barWidth - 4
+                            local barY = headPos.Y
+
+                            cache.HealthBarOutline.Size = Vector2.new(barWidth + 2, height + 2)
+                            cache.HealthBarOutline.Position = Vector2.new(barX - 1, barY - 1)
+                            cache.HealthBarOutline.Visible = true
+
+                            local currentBarHeight = height * healthPercent
+                            cache.HealthBar.Size = Vector2.new(barWidth, currentBarHeight)
+                            cache.HealthBar.Position = Vector2.new(barX, barY + (height - currentBarHeight))
+                            cache.HealthBar.Visible = true
+
+                            cache.HealthText.Text = math.floor(humanoid.Health) .. " HP"
+                            cache.HealthText.Position = Vector2.new(barX - 38, barY + (height / 2) - 6)
+                            cache.HealthText.Visible = true
+                        else
+                            cache.HealthBarOutline.Visible = false
+                            cache.HealthBar.Visible = false
+                            cache.HealthText.Visible = false
+                        end
+
+                        -- Name Tag
+                        if Settings.NameESPEnabled then
+                            cache.NameTag.Text = player.Name
+                            cache.NameTag.Position = Vector2.new(headPos.X, headPos.Y - 15)
+                            cache.NameTag.Visible = true
+                        else
+                            cache.NameTag.Visible = false
+                        end
+                    else
+                        cache.Box.Visible = false
+                        cache.Tracer.Visible = false
+                        cache.NameTag.Visible = false
+                        cache.HealthBarOutline.Visible = false
+                        cache.HealthBar.Visible = false
+                        cache.HealthText.Visible = false
+                    end
+                else
+                    cache.Box.Visible = false
+                    cache.Tracer.Visible = false
+                    cache.NameTag.Visible = false
+                    cache.HealthBarOutline.Visible = false
+                    cache.HealthBar.Visible = false
+                    cache.HealthText.Visible = false
+                end
+            else
+                cache.Box.Visible = false
+                cache.Tracer.Visible = false
+                cache.NameTag.Visible = false
+                cache.HealthBarOutline.Visible = false
+                cache.HealthBar.Visible = false
+                cache.HealthText.Visible = false
+            end
+        end
+    end
+end
+
+Players.PlayerRemoving:Connect(function(player)
+    if espCache[player] then
+        espCache[player].Box:Remove()
+        espCache[player].Tracer:Remove()
+        espCache[player].NameTag:Remove()
+        espCache[player].HealthBarOutline:Remove()
+        espCache[player].HealthBar:Remove()
+        espCache[player].HealthText:Remove()
+        espCache[player] = nil
+    end
+end)
+
+-- Main Loop
+RunService.RenderStepped:Connect(function()
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    
+    FOVCircle.Position = screenCenter
+    FOVCircle.Radius = Settings.FOVRadius
+    FOVCircle.Color = fovColorOptions[Settings.FOVColorName] or Color3.fromRGB(255, 255, 255)
+    FOVCircle.Visible = Settings.FOVEnabled
+
+    UpdateESP()
+
+    if Settings.AimbotEnabled and isLockActive then
+        local targetPos = GetClosestTarget()
+        if targetPos then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
+        end
+    end
+end)
